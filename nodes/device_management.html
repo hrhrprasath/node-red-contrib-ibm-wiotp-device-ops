@@ -1,0 +1,349 @@
+<!--
+Copyright 2014, 2015, 2016 IBM Corp.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<script type="text/x-red" data-template-name="device-management">
+
+    <div class="form-row">
+        <label for="node-input-auth" style="width:180px;"><i class="fa fa-unlock"></i>Authentication</label>
+        <select type="text" id="node-input-auth"  style="width:220px;">
+            <option value="bluemix">Bluemix Service</option>
+            <option value="api" >API Key</option>
+        </select>
+    </div>
+
+    <div class="form-row" id = "node-input-apiKey-div">
+        <label for="node-input-apiKey" id="node-input-apiKeyLabel" style="width:180px;"><i class="fa fa-key"></i> API Key</label>
+        <input type="text" id="node-input-apiKey" placeholder="API Key" style="width:220px;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-method" style="width:180px;"><i class="fa fa-cogs"></i> Operation</label>
+        <select type="text" id="node-input-method" style="width:220;">
+            <option value="Get_All_DMR">List device management requests</option>
+            <option value="New_DMR" >Initiate a device management request</option>
+            <option value="Delete_DMR">Clear device management request status</option>
+            <option value="Get_DMR">Get device management request</option>
+            <option value="Get_DMR_Device_Status">Get list of device management request device statuses</option>
+            <option value="Get_DMR_Individual">Get individual device management request device status</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-form-row-requestType">
+        <label for="node-input-method" style="width:180px;"><i class="fa fa-cog"></i> Request Type</label>
+        <select type="text" id="node-input-requestType" style="width:220;">
+            <option value="device/factoryReset">Factory Reset Device</option>
+            <option value="device/reboot" >Reboot Devices</option>
+            <option value="firmware/download">Firmware Download </option>
+            <option value="firmware/update">Firmware Update</option>
+        </select>
+    </div>
+    <div class="form-row" id="node-form-row-requestId">
+        <label for="node-input-requestId" style="width:180px;"><i class="fa fa-flag"></i> Request Id</label>
+        <input type="text" id="node-input-requestId" placeholder="e.g reset1234" style="width:220px;"  >
+    </div>
+
+    <div class="form-row" id="node-form-row-deviceType">
+        <label for="node-input-deviceType" style="width:180px;"><i class="fa fa-sitemap"></i> Device Type</label>
+        <select type="text" list="exampleList" id="node-input-deviceType" style="width:220px;" >
+            <option value=""></option>
+        </select>
+
+        <!-- <a class="editor-button" id="node-input-deviceType-link" href="#" target="_new"><i class="fa fa-external-link" /></a> -->
+    </div>
+
+
+    <div class="form-row" id="dev-id-cont">
+        <label for="node-input-deviceId" style="width:180px;"><i class="fa fa-plug"></i> Device Id</label>
+        <input type="text" id="node-input-deviceId" placeholder="e.g acmepump01" style="width:220px;"  >
+    </div>
+
+
+
+    <div id="dmr-optional-params-cont">
+
+      <div class="form-row node-input-option-container-row" style="margin-bottom: 0px;width: 100%">
+          <label for="node-input-width" style="vertical-align:top;display:inline"><i class="fa fa-list-alt"></i> Optional parameters:</label> <br/>
+          <div id="node-input-option-container-div" style="box-sizing: border-box; border-radius: 5px; height: 180px; padding: 5px; border: 1px solid #ccc; overflow-y:scroll;display: inline-block; width:100%;">
+              <ol id="node-input-option-container" style=" list-style-type:none; margin: 0;"></ol>
+          </div>
+      </div>
+      <div class="form-row">
+          <a href="#" class="editor-button editor-button-small" id="node-input-add-option" style="margin-top: 4px;"><i class="fa fa-plus"></i> <span>Property</span></a>
+      </div>
+
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name" style="width:180px;"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name" style="width:220px;">
+    </div>
+
+
+</script>
+
+
+<script type="text/javascript">
+    RED.nodes.registerType('device-management',{
+        category: 'Watson IoT',
+        color: '#E7E7AE',
+        defaults: {
+            auth : { value : "bluemix" },
+            name : { value : "" },
+            apiKey : {
+                type : "wiotp",
+                required: false,
+                validate: function(v) {
+                    var auth = $("#node-input-auth").val() || this.auth;
+                    return auth === 'bluemix' || (v != '' && v!='_ADD_');
+                }
+            },
+            method : { value:  "Get_All_DMR"},
+            requestId : {value : ""},
+            deviceType : { value : ""},
+            deviceId :  { value : ""},
+            requestType : {value : ""},
+            parameters : {value :[]}
+          },
+        inputs:1,
+        outputs:1,
+        icon: "device-type.png",
+        label: function() {
+            return this.name || this.deviceTypeId || "Device Managment";
+        },
+        oneditprepare: function() {
+
+            var selectedDt = this.deviceType;
+            var node = this;
+            function updateContent() {
+              /*
+              $.getJSON('devicetype/orgid',function(data) {
+                  $("#node-input-deviceType-link").attr('href','https://'+data+'.internetofthings.ibmcloud.com/dashboard/#/devices/deviceTypes');
+              });
+              */
+              $.getJSON('watsoniot/devicemanagment/gettypes',function(data) {
+                  //get the list of device types
+
+                  var deviceTypeSelect = $('#node-input-deviceType');
+                  deviceTypeSelect.html('<option value=""></option>');
+                  if(data) {
+
+                      var items = data.results;
+                      $.each(items, function (i, item) {
+                          deviceTypeSelect.append($('<option>', {
+                              value: item.id,
+                              text : item.id
+                          }));
+                      });
+                  }
+
+                  if(selectedDt) {
+                      deviceTypeSelect.val(selectedDt);
+                  }
+              });
+
+            }
+
+            $("#node-input-apiKey").on('change', function(){
+                var authValue = $('#node-input-auth').val();
+                var credsKey = $("#node-input-apiKey").val();
+                if(authValue === 'api' && credsKey && credsKey !== "_ADD_") {
+                    var wiotpConfig = RED.nodes.node(credsKey);
+                    $.post('watsoniot/devicemanagment/newapikey', {
+                        "id" : wiotpConfig.id,
+                        "credentials" : wiotpConfig.credentials
+                    } , function(data) {
+                        updateContent();
+                    });
+                }
+            });
+
+            $("#node-input-method").on('change', function(){
+                if(this.value === "Get_All_DMR" ){
+                    $("#dev-id-cont").hide();
+                    $("#node-form-row-deviceType").hide();
+                    $("#node-form-row-requestId").hide();
+                    $("#dmr-optional-params-cont").hide();
+                    $("#node-form-row-requestType").hide();
+                } else if(this.value === "New_DMR"){
+                  $("#dev-id-cont").show();
+                  $("#node-form-row-deviceType").show();
+                  // $("#dev-id-cont").hide();
+                  // $("#node-form-row-deviceType").hide();
+                  $("#node-form-row-requestId").hide();
+                  $("#dmr-optional-params-cont").hide();
+                  $("#node-form-row-requestType").show();
+                } else if(this.value === "Get_DMR_Individual"){
+                    $("#dev-id-cont").show();
+                    $("#node-form-row-deviceType").show();
+                    $("#node-form-row-requestId").show();
+                    $("#dmr-optional-params-cont").hide();
+                    $("#node-form-row-requestType").hide();
+                }else {
+                    $("#dev-id-cont").hide();
+                    $("#node-form-row-deviceType").hide();
+                    $("#node-form-row-requestId").show();
+                    $("#dmr-optional-params-cont").hide();
+                    $("#node-form-row-requestType").hide();
+                }
+
+            });
+
+            $("#node-input-requestType").on('change',function(){
+              if(this.value.match(/firmware/g)){
+                $("#dmr-optional-params-cont").show();
+              }else {
+                $("#dmr-optional-params-cont").hide();
+              }
+
+            });
+            $("#node-input-auth").on('change', function(){
+                if(this.value === "bluemix"){
+                    $("#node-input-apiKey-div").hide();
+                    $.get('watsoniot/devicemanagment/getbluemixtypes',function(data) {
+                      // update the content of devicetype and orgId
+                      updateContent();
+                    });
+                }else {
+                    $("#node-input-apiKey-div").show();
+                    var credsKey = $("#node-input-apiKey").val();
+
+                    if(credsKey && credsKey !== "_ADD_") {
+                        var wiotpConfig = RED.nodes.node(credsKey);
+                        $.post('watsoniot/devicemanagment/newapikey', {
+                            "id" : wiotpConfig.id,
+                            "credentials" : wiotpConfig.credentials
+                        } , function(data) {
+                            updateContent();
+                        });
+                    }
+                }
+
+            });
+
+            function disableSelectedOption(){
+              var keys =[];
+              for (var i = 0; i < node.parameters.length; i++) {
+                keys.push(node.parameters[i].name)
+              }
+              var selects = $("#node-input-option-container select");
+              selects.each(function(){
+                var optionList =$(this).children();
+                  optionList.each(function(){
+                    var key = $(this).attr('value');
+                    if(keys.indexOf(key) != -1)
+                      $(this).attr('disabled','disabled')
+                    else {
+                      $(this).removeAttr('disabled')
+                    }
+                  })
+              })
+
+            }
+            var arr = [
+              {val : "", text: '--Select--'},
+              {val : "uri", text: 'Firmware URL'},
+              {val : "version", text: 'Firmware Version'},
+              {val : "verifier", text: 'Firmware Verifier'},
+              {val : "name", text: 'Firmware Name'}
+            ];
+            function generateProperties(i, option) {
+              var container = $('<li/>',{style:"background: #fff; margin:0; padding:8px 0px 0px; border-bottom: 1px solid #ccc;"});
+              var row = $('<div/>').appendTo(container);
+              var row2 = $('<div/>',{style:"padding-top: 5px; padding-left: 175px;"}).appendTo(container);
+              var row3 = $('<div/>',{style:"padding-top: 5px; padding-left: 120px;"}).appendTo(container);
+
+              $('<i style="color: #eee; cursor: move; margin-left: 3px;" class="node-input-option-handle fa fa-bars"></i>').appendTo(row);
+
+              var select = $('<select/>',{style:"margin-left: 7px; width: 170px;",value:option.name}).appendTo(row)
+
+              $(arr).each(function() {
+                  select.append($("<option>").attr('value',this.val).text(this.text));
+              });
+              //After rendering check disable selected options
+              setTimeout(disableSelectedOption,100);
+              select.val(option.name)
+              select.change(function (evt) {
+                option.name = this.value;
+                //Update the selection change in all the options populated
+                disableSelectedOption();
+              });
+              var labelField = $('<input/>',{class:"node-input-option-value",type:"text",style:"margin-left: 7px; width: calc(90% - 200px);", placeholder: 'Value', value:option.value}).appendTo(row);
+              var finalspan = $('<span/>',{style:"float: right;margin-right: 10px;"}).appendTo(row);
+              var deleteButton = $('<a/>',{href:"#",class:"editor-button editor-button-small", style:"margin-top: 7px; margin-left: 5px;"}).appendTo(finalspan);
+              $('<i/>',{class:"fa fa-remove"}).appendTo(deleteButton);
+              deleteButton.click(function() {
+                  container.css({"background":"#fee"});
+                  container.fadeOut(300, function() {
+                      var index =node.parameters.indexOf(option);
+                      if (index > -1) {
+                            node.parameters.splice(index, 1);
+                      }
+                      $(this).remove();
+                      //Update the selection change in all the options populated
+                      disableSelectedOption();
+                  });
+              });
+
+              $("#node-input-option-container").append(container);
+          }
+
+          $("#node-input-add-option").click(function() {
+            if(node.parameters.length < arr.length-1){
+              var obj ={};
+              node.parameters.push(obj)
+              generateProperties($("#node-input-option-container").children().length+1, obj);
+              $("#node-input-option-container-div").scrollTop($("#node-input-option-container-div").get(0).scrollHeight);
+            }
+
+          });
+
+          for (var i=0;i<this.parameters.length;i++) {
+              var option = this.parameters[i];
+              generateProperties(i+1,option);
+          }
+
+          $( "#node-input-option-container" ).sortable({
+              axis: "y",
+              handle:".node-input-option-handle",
+              cursor: "move"
+          });
+        },
+        oneditsave: function() {
+          var parameters = $("#node-input-option-container").children();
+          var node = this;
+          node.parameters = [];
+          //updated values only if selected types has firmware
+          if($("#node-input-requestType").val().match(/firmware/g))
+          {
+            parameters.each(function(i) {
+                var option = $(this);
+                var obj={}
+                obj.name = option.find("select option:selected").val();
+                obj.value = option.find(".node-input-option-value").val();
+                if(obj.name)
+                node.parameters.push(obj);
+            });
+          }
+
+          var auth = $("#node-input-auth").val();
+          if (auth === 'bluemix') {
+              $("#node-input-apiKey").val('_ADD_');
+          }
+        }
+    });
+</script>
+
+
+
+<script type="text/x-red" data-help-name="device-management">
+    <p> TODO: </p>
+</script>
