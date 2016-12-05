@@ -56,17 +56,17 @@ module.exports = function(RED) {
     //initialize with Bluemix service
     connectBluemix();
 
-    RED.httpAdmin.get('/watsoniot/devicemanagment/orgid', function(req,res) {
+    RED.httpAdmin.get('/watsoniot/devicediagnostics/orgid', function(req,res) {
         res.send(JSON.stringify(wiotp_creds.org));
     });
 
-    RED.httpAdmin.get('/watsoniot/devicemanagment/getbluemixtypes', function(req,res) {
+    RED.httpAdmin.get('/watsoniot/devicediagnostics/getbluemixtypes', function(req,res) {
 
         connectBluemix();
         res.send('success');
     });
 
-    RED.httpAdmin.get('/watsoniot/devicemanagment/gettypes', function(req,res) {
+    RED.httpAdmin.get('/watsoniot/devicediagnostics/gettypes', function(req,res) {
 
       if(appClient) {
         appClient.getAllDeviceTypes().then (function onSuccess (response) {
@@ -79,7 +79,7 @@ module.exports = function(RED) {
       }
     });
 
-    RED.httpAdmin.post('/watsoniot/devicemanagment/newapikey', function(req,res) {
+    RED.httpAdmin.post('/watsoniot/devicediagnostics/newapikey', function(req,res) {
 
       if(req.body.credentials && req.body.credentials.user && req.body.credentials.password) {
         connectApiKey(req.body.credentials);
@@ -92,7 +92,7 @@ module.exports = function(RED) {
     });
 
 
-    function DeviceManagementHandler(config) {
+    function DeviceDiagnosticsHandler(config) {
         RED.nodes.createNode(this,config);
         this.parameters = config.parameters || [];
         var authSelected = config.auth;
@@ -152,64 +152,60 @@ module.exports = function(RED) {
           // take the values from config, if not get it from msg.
           var deviceType = config.deviceType ? config.deviceType : msg.payload.deviceType;
           var deviceId = config.deviceId ? config.deviceId : msg.payload.deviceId;
-          var requestId = config.requestId ? config.requestId : msg.payload.requestId;
-          var requestType = msg.payload.requestType ? msg.payload.requestType : config.requestType;
-          var parameters =  config.parameters ? config.parameters : msg.payload.parameters ||[];//[{"value": "0.2.3","name": "NewVersion" }];
-          var devices = config.deviceType && config.deviceId ? [{ "typeId": config.deviceType, "deviceId": config.deviceId }] : msg.payload.deviceList ;
+          var logId = config.logId ? config.logId : msg.payload.logId;
+          var log = msg.payload.log;
+          var errorCode = msg.payload.errorCode;
+          var parameters =  config.parameters ? config.parameters : msg.payload.parameters;// ||[];//[{"value": "0.2.3","name": "NewVersion" }];
+        //  var devices = config.deviceType && config.deviceId ? [{ "typeId": config.deviceType, "deviceId": config.deviceId }] : msg.payload.deviceList ;
 
           //Validations
-          if(( operation_lowercase !== 'get_all_dmr' && operation_lowercase !== 'new_dmr') && !requestId ){
-            node.error("Request Id must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.requestId");
+          if(!deviceType ){
+            node.error("DeviceType must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.deviceType");
             clearStatus();
             return;
           }
-          if(operation_lowercase === 'new_dmr' ){
-            if( !devices || !devices.length){
-              node.error("Either device list or device type and device id  must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.deviceList");
-              clearStatus();
-              return;
-            }
+          if(!deviceId ){
+            node.error("Device Id must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.deviceId");
+            clearStatus();
+            return;
           }
-          if(operation_lowercase === 'get_dmr_individual'){
-            if(!deviceType ){
-              node.error("DeviceType must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.deviceType");
+          if((operation_lowercase === "delete_log" || operation_lowercase === "get_log" )&& !logId){
+              node.error("Log Id must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.logId");
               clearStatus();
               return;
-            }
-            if(!deviceId ){
-              node.error("Device Id must be set for "+operation+" operation. You can either set in the configuration or must be passed as msg.payload.deviceId");
-              clearStatus();
-              return;
-            }
           }
+
           //Operations
           switch (operation_lowercase) {
-                case "get_all_dmr":
-                  appClient.getAllDeviceManagementRequests().then(onSuccess,onError);
+                case "get_all_log":
+                  appClient.getAllDiagnosticLogs(deviceType,deviceId).then(onSuccess,onError);
                   break;
-                case "new_dmr":
-                  try {
-                    // console.log("action : " + requestType);
-                    // console.log("params" + JSON.stringify(parameters));
-                    // console.log("devices " + JSON.stringify(devices));
-                    appClient.initiateDeviceManagementRequest(requestType, parameters, devices).then(onSuccess,onError);
-                  } catch (e) {
-                        node.error(e.message);
-                        clearStatus();
-                        return;
-                  }
+                case "new_log":
+                console.log("dt"+deviceType);
+                console.log("id"+ deviceId);
+                console.log("log"+ log);
+                  appClient.addDeviceDiagLogs(deviceType,deviceId,log).then(onSuccess,onError);
                   break;
-                case "delete_dmr":
-                  appClient.deleteDeviceManagementRequest(requestId).then(onSuccess,onError);
+                case "get_log":
+                  appClient.getDiagnosticLog(deviceType,deviceId,logId).then(onSuccess,onError);
                   break;
-                case "get_dmr":
-                  appClient.getDeviceManagementRequest(requestId).then(onSuccess,onError);
+                case "delete_log":
+                console.log("dt"+deviceType);
+                console.log("id"+ deviceId);
+                console.log("log id"+ logId);
+                  appClient.deleteDiagnosticLog(deviceType,deviceId,logId).then(onSuccess,onError);
                   break;
-                case "get_dmr_individual":
-                  appClient.getDeviceManagementRequestStatusByDevice(requestId,deviceType,deviceId).then(onSuccess,onError);
+                case "delete_all_logs":
+                  appClient.clearAllDiagnosticLogs(deviceType,deviceId).then(onSuccess,onError);
                   break;
-                case "get_dmr_device_status":
-                  appClient.getDeviceManagementRequestStatus(requestId).then(onSuccess,onError);
+                case "new_err":
+                  appClient.addErrorCode(deviceType,deviceId,errorCode).then(onSuccess,onError);
+                  break;
+                case "get_all_err":
+                  appClient.getDeviceErrorCodes(deviceType,deviceId).then(onSuccess,onError);
+                  break;
+                case "delete_all_err":
+                  appClient.clearDeviceErrorCodes(deviceType,deviceId).then(onSuccess,onError);
                   break;
           }
         });
@@ -217,7 +213,7 @@ module.exports = function(RED) {
 
 
 
-	RED.nodes.registerType("device-management",DeviceManagementHandler);
+	RED.nodes.registerType("device-diagnostics",DeviceDiagnosticsHandler);
 
 
 }

@@ -33,6 +33,7 @@
 		"nodes": {
 			"Device Factory": "nodes/device_manager.js",
 			"Device Type": "nodes/device_type_manager.js",
+			"Device diagnostic": "nodes/device_diagnosticsr.js",
 			"Device Management" :"nodes/device_managment.js"
 		}
 	}

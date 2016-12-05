@@ -1,0 +1,203 @@
+<!--
+Copyright 2014, 2015, 2016 IBM Corp.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<script type="text/x-red" data-template-name="device-diagnostics">
+
+    <div class="form-row">
+        <label for="node-input-auth" style="width:180px;"><i class="fa fa-unlock"></i>Authentication</label>
+        <select type="text" id="node-input-auth"  style="width:220px;">
+            <option value="bluemix">Bluemix Service</option>
+            <option value="api" >API Key</option>
+        </select>
+    </div>
+
+    <div class="form-row" id = "node-input-apiKey-div">
+        <label for="node-input-apiKey" id="node-input-apiKeyLabel" style="width:180px;"><i class="fa fa-key"></i> API Key</label>
+        <input type="text" id="node-input-apiKey" placeholder="API Key" style="width:220px;">
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-method" style="width:180px;"><i class="fa fa-cogs"></i> Operation</label>
+        <select type="text" id="node-input-method" style="width:220;">
+            <option value="Get_All_Log">Get all device diagnostic logs</option>
+            <option value="New_Log" >Add device diagnostic log information</option>
+            <option value="Get_Log">Get device diagnostic log</option>
+            <option value="Delete_log">Delete diagnostic log</option>
+            <option value="Delete_All_logs">Clear diagnostic logs</option>
+            <option value="New_err">Add diagnostic error code for a device</option>
+            <option value="Get_All_err">Get device diagnostic error codes</option>
+            <option value="Delete_All_err">Clear error codes</option>
+        </select>
+    </div>
+
+    <div class="form-row" id="node-form-row-logId">
+        <label for="node-input-logId" style="width:180px;"><i class="fa fa-flag"></i> Log Id</label>
+        <input type="text" id="node-input-logId" placeholder="e.g reset1234" style="width:220px;"  >
+    </div>
+
+    <div class="form-row" id="node-form-row-deviceType">
+        <label for="node-input-deviceType" style="width:180px;"><i class="fa fa-sitemap"></i> Device Type</label>
+        <select type="text" list="exampleList" id="node-input-deviceType" style="width:220px;" >
+            <option value=""></option>
+        </select>
+
+        <!-- <a class="editor-button" id="node-input-deviceType-link" href="#" target="_new"><i class="fa fa-external-link" /></a> -->
+    </div>
+
+
+    <div class="form-row" id="dev-id-cont">
+        <label for="node-input-deviceId" style="width:180px;"><i class="fa fa-plug"></i> Device Id</label>
+        <input type="text" id="node-input-deviceId" placeholder="e.g acmepump01" style="width:220px;"  >
+    </div>
+
+    <div class="form-row">
+        <label for="node-input-name" style="width:180px;"><i class="icon-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name" style="width:220px;">
+    </div>
+</script>
+
+
+<script type="text/javascript">
+    RED.nodes.registerType('device-diagnostics',{
+        category: 'Watson IoT',
+        color: '#e7f0f7',
+        defaults: {
+            auth : { value : "bluemix" },
+            name : { value : "" },
+            apiKey : {
+                type : "wiotp",
+                required: false,
+                validate: function(v) {
+                    var auth = $("#node-input-auth").val() || this.auth;
+                    return auth === 'bluemix' || (v != '' && v!='_ADD_');
+                }
+            },
+            method : { value:  "Get_All_Log"},
+            logId : {value : ""},
+            deviceType : { value : ""},
+            deviceId :  { value : ""}
+          },
+        inputs:1,
+        outputs:1,
+        icon: "device-type.png",
+        label: function() {
+            return this.name || this.deviceTypeId || "Device Diagnostics";
+        },
+        oneditprepare: function() {
+
+            var selectedDt = this.deviceType;
+            var node = this;
+            function updateContent() {
+              /*
+              $.getJSON('devicetype/orgid',function(data) {
+                  $("#node-input-deviceType-link").attr('href','https://'+data+'.internetofthings.ibmcloud.com/dashboard/#/devices/deviceTypes');
+              });
+              */
+              $.getJSON('watsoniot/devicediagnostics/gettypes',function(data) {
+                  //get the list of device types
+
+                  var deviceTypeSelect = $('#node-input-deviceType');
+                  deviceTypeSelect.html('<option value=""></option>');
+                  if(data) {
+
+                      var items = data.results;
+                      $.each(items, function (i, item) {
+                          deviceTypeSelect.append($('<option>', {
+                              value: item.id,
+                              text : item.id
+                          }));
+                      });
+                  }
+
+                  if(selectedDt) {
+                      deviceTypeSelect.val(selectedDt);
+                  }
+              });
+
+            }
+
+            $("#node-input-apiKey").on('change', function(){
+                var authValue = $('#node-input-auth').val();
+                var credsKey = $("#node-input-apiKey").val();
+                if(authValue === 'api' && credsKey && credsKey !== "_ADD_") {
+                    var wiotpConfig = RED.nodes.node(credsKey);
+                    $.post('watsoniot/devicediagnostics/newapikey', {
+                        "id" : wiotpConfig.id,
+                        "credentials" : wiotpConfig.credentials
+                    } , function(data) {
+                        updateContent();
+                    });
+                }
+            });
+
+            $("#node-input-method").on('change', function(){
+              if(this.value === "Delete_log" || this.value == "Get_Log"){
+                    $("#node-form-row-logId").show();
+                }else {
+                    // $("#dev-id-cont").hide();
+                    // $("#node-form-row-deviceType").hide();
+                    $("#node-form-row-logId").hide();
+                }
+
+            });
+
+
+            $("#node-input-auth").on('change', function(){
+                if(this.value === "bluemix"){
+                    $("#node-input-apiKey-div").hide();
+                    $.get('watsoniot/devicediagnostics/getbluemixtypes',function(data) {
+                      // update the content of devicetype and orgId
+                      updateContent();
+                    });
+                }else {
+                    $("#node-input-apiKey-div").show();
+                    var credsKey = $("#node-input-apiKey").val();
+
+                    if(credsKey && credsKey !== "_ADD_") {
+                        var wiotpConfig = RED.nodes.node(credsKey);
+                        $.post('watsoniot/devicediagnostics/newapikey', {
+                            "id" : wiotpConfig.id,
+                            "credentials" : wiotpConfig.credentials
+                        } , function(data) {
+                            updateContent();
+                        });
+                    }
+                }
+
+            });
+          },
+          oneditsave: function() {
+            var auth = $("#node-input-auth").val();
+            if (auth === 'bluemix') {
+                $("#node-input-apiKey").val('_ADD_');
+            }
+          }
+        });
+</script>
+
+
+
+<script type="text/x-red" data-help-name="device-diagnostics">
+  <p>Device Diagnostics node can perform device actions on the managed device registered  in the IBM Watson IoT Platform. For some fields, the value can be passed in the <code>msg</code>. Any fields set on the node explicitly take precedence.</p>
+  <p>
+  <dl>
+
+  <dt>Authentication</dt>
+  <dd>Authentication type. <br/>
+      <ol>
+      <li><i>Bluemix Service</i> - Use the Watson IoT service bound to this application</li>
+      <li><i>API Key</i> - Use a  Watson IoT Platform API key from your organization of</li>
+      </ol>
+  </dd>
+  </p>
+</script>

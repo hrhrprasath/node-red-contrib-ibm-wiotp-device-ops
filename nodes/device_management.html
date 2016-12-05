@@ -345,5 +345,88 @@ limitations under the License.
 
 
 <script type="text/x-red" data-help-name="device-management">
-    <p> TODO: </p>
+  <p>Device Management node can perform device actions on the managed device registered  in the IBM Watson IoT Platform. For some fields, the value can be passed in the <code>msg</code>. Any fields set on the node explicitly take precedence.</p>
+  <p>
+  <dl>
+
+  <dt>Authentication</dt>
+  <dd>Authentication type. <br/>
+      <ol>
+      <li><i>Bluemix Service</i> - Use the Watson IoT service bound to this application</li>
+      <li><i>API Key</i> - Use a  Watson IoT Platform API key from your organization of</li>
+      </ol>
+  </dd>
+
+  <dt>Operation</dt>
+  <dd>Specifies the operation to be performed. For more information, read the <a target="_blank" href="https://console.ng.bluemix.net/docs/services/IoT/index.html">Watson IoT Platform documentation</a>. May be specified by <code>msg.operation = xxx</code>where <code>xxx</code> values supported are: <br/>
+    <ul>
+      <li>Get_all_dmr : List device management requests</li>
+      <li>New_dmr : Initiate a device management request</li>
+      <li>Delete_dmr : Clear device management request status</li>
+      <li>Get_dmr : Get device management request </li>
+      <li>Get_dmr_device_status : Get list of device management request device statuses</li>
+      <li>get_dmr_individual : Get individual device management request device status</li>
+    </ul>
+    <br/>
+  </dd>
+
+  <dt>Initiate a request</dt>
+  <dd>
+    <ul>
+      <li><dt>Request Type (Mandatory)</dt>
+      <dd>There are four kinds of action can be initialized to perform on an device, Which can be selected via droplet or can be specified by <code>msg.payload.requestType</code>
+        <ul>
+          <li>device/factoryReset : Factory Reset Device</li>
+          <li>device/reboot : Reboot Devices</li>
+          <li>firmware/download : Firmware Download</li>
+          <li>firmware/update : Firmware Update</li>
+        </ul>
+      </dd>
+      </li>
+
+      <li><dt>DeviceList (Mandatory)</dt>
+        <dd>List of devices to which action will be performed,it can me specified as
+        <pre>msg.payload.deviceList = [
+{
+ "typeId": deviceType,
+ "deviceId": deviceId
+}];</pre>
+        </dd>
+        <dd>If device type and device id is specified in the configuration it will executed only for that device</dd>
+      </li>
+      <li><dt>Parameters (optional)</dt>
+        <dd>Value that are send along with the initiate action request
+          <pre>msg.payload.parameters = [
+  {
+    "value": "","name": ""
+  }
+];</pre>
+        </dd>
+        <dd>For firmware actions optional values can also filled using the node configuration</dd>
+      </li>
+    </ul>
+  </dd>
+
+  <dt>Mandatory except for list and initiate</dt>
+  <dd>
+    <ul>
+      <li><dt>Request Id </dt>
+      <dd>To identify a device management request sent to the Watson IoT Platform. May be specified by <code>msg.payload.requestId</code>.</dd>
+      </li>
+    </ul>
+  </dd>
+
+  <dt>Mandatory for Get status for individual device</dt>
+  <dd>
+    <ul>
+      <li><dt>Device Type</dt>
+        <dd>To identify a device of type for which the status is obtained. May be specified by <code>msg.payload.deviceType</code>.</dd>
+      </li>
+      <li><dt>Device Id</dt>
+        <dd>To identify a device of Id for which the status is obtained. May be specified by <code>msg.payload.deviceId</code>.</dd>
+      </li>
+      </ul>
+    </dd>
+  </dl>
+  </p>
 </script>
